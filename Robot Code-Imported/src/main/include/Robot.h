@@ -25,7 +25,7 @@
 #include "networktables/NetworkTableInstance.h"
 #include "networktables/NetworkTableEntry.h"
 #include "networktables/NetworkTableValue.h"
-//#include "wpi/span.h"
+//#include "span.h"
 #include "cameraserver/CameraServer.h"
 
 #include <iostream>
@@ -64,11 +64,22 @@ class Robot : public frc::TimedRobot {
 
   //rev::SparkMaxRelativeEncoder encoder;
 
+  frc::Joystick leftJoyStick{0};
+  frc::Joystick rightJoyStick{1};
+  frc::Joystick operatorJoyStick{2};
 
-  frc::Joystick leftJoystick{0};
-	frc::Joystick rightJoystick{1};
+  rev::CANSparkMax intakeMouth{1, rev::CANSparkMax::MotorType::kBrushless};
+  rev::CANSparkMax intakeDeploy{2, rev::CANSparkMax::MotorType::kBrushless};
+  rev::CANSparkMax shooter1{3, rev::CANSparkMax::MotorType::kBrushless};
+  rev::CANSparkMax shooter2{4, rev::CANSparkMax::MotorType::kBrushless};
+  rev::CANSparkMax climber1{5, rev::CANSparkMax::MotorType::kBrushless};
+  rev::CANSparkMax climber2{6, rev::CANSparkMax::MotorType::kBrushless};
 
-  frc::Encoder encoder{0, 1};
+  const double shooter1ShootSetting = 0.5;
+  const double shooter2ShootSetting = -0.5;
+  const double shooter1RestSetting = 0;
+  const double shooter2RestSetting = 0;
+  const double operatorJoyStickYDeadZone = 0.05;
 
 };
 

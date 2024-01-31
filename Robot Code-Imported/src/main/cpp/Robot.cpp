@@ -72,7 +72,7 @@ void Robot::TestInit() {
 
 void Robot::TestPeriodic() {
 
-  double desiredangle = atan(leftJoystick.GetY()/leftJoystick.GetX());
+  double desiredangle = atan(leftJoyStick.GetY()/leftJoyStick.GetX());
   double currentangle = 0;//encoder.GetPosition();
 
   if((currentangle*2*M_PI - M_PI)/2 < desiredangle-.2){
@@ -92,12 +92,12 @@ void Robot::TestPeriodic() {
     brspin.Set(0);
   }
 
-  if(rightJoystick.GetY() > .1){
+  if(rightJoyStick.GetY() > .1){
     fldrive.Set(.1);
     frdrive.Set(.1);
     bldrive.Set(.1);
     brdrive.Set(.1);
-  } else if (rightJoystick.GetY() < -.1){
+  } else if (rightJoyStick.GetY() < -.1){
     fldrive.Set(-.1);
     frdrive.Set(-.1);
     bldrive.Set(-.1);
@@ -108,6 +108,22 @@ void Robot::TestPeriodic() {
     bldrive.Set(0);
     brdrive.Set(0);
   }
+
+  if(operatorJoyStick.GetTrigger())
+  {
+    shooter1.Set(shooter1ShootSetting);
+    shooter2.Set(shooter2ShootSetting);
+  }
+
+  else {
+    shooter1.Set(shooter1RestSetting);
+    shooter2.Set(shooter2RestSetting);
+  }
+
+  if (abs(operatorJoyStick.GetY()) > operatorJoyStickYDeadZone) {intakeDeploy.Set(operatorJoyStick.GetY() * -1);};
+
+  //intakeDeploy.Set(operatorJoyStick.GetY() * -1);
+  //intakeMouth.Set(operatorJoyStick.GetY() * -1);
 
   //spinMotor.Set(leftJoystick.GetRawAxis(0) * 0.2f); //0 is X axis
   //driveMotor.Set(rightJoystick.GetRawAxis(1) * 0.2f); //1 is Y axis
