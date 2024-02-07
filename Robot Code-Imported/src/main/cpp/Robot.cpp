@@ -10,9 +10,9 @@
 #include <frc/smartdashboard/SmartDashboard.h>
 
 void Robot::RobotInit() {
-  m_chooser.SetDefaultOption(kAutoNameDefault, kAutoNameDefault);
-  m_chooser.AddOption(kAutoNameCustom, kAutoNameCustom);
-  frc::SmartDashboard::PutData("Auto Modes", &m_chooser);
+	m_chooser.SetDefaultOption(kAutoNameDefault, kAutoNameDefault);
+	m_chooser.AddOption(kAutoNameCustom, kAutoNameCustom);
+	frc::SmartDashboard::PutData("Auto Modes", &m_chooser);
 }
 
 /**
@@ -37,97 +37,91 @@ void Robot::RobotPeriodic() {}
  * make sure to add them to the chooser code above as well.
  */
 void Robot::AutonomousInit() {
-  m_autoSelected = m_chooser.GetSelected();
-  // m_autoSelected = SmartDashboard::GetString("Auto Selector",
-  //     kAutoNameDefault);
-  fmt::print("Auto selected: {}\n", m_autoSelected);
+	m_autoSelected = m_chooser.GetSelected();
+	// m_autoSelected = SmartDashboard::GetString("Auto Selector",
+	//     kAutoNameDefault);
+	fmt::print("Auto selected: {}\n", m_autoSelected);
 
-  if (m_autoSelected == kAutoNameCustom) {
-    // Custom Auto goes here
-  } else {
-    // Default Auto goes here
-  }
+	if (m_autoSelected == kAutoNameCustom) {
+		// Custom Auto goes here
+	} else {
+		// Default Auto goes here
+	}
 }
 
 void Robot::AutonomousPeriodic() {
-  if (m_autoSelected == kAutoNameCustom) {
-  
-    // Custom Auto goes here
-  } else {
-    // Default Auto goes here
-  }
+	if (m_autoSelected == kAutoNameCustom) {
+	
+		// Custom Auto goes here
+	} else {
+		// Default Auto goes here
+	}
 }
 
 void Robot::TeleopInit() {}
 
-void Robot::TeleopPeriodic() {}
+void Robot::TeleopPeriodic() {
+	
+	driveX = leftJoyStick.GetX();
+	driveY = leftJoyStick.GetY();
+	rotation = rightJoyStick.GetX();
+
+	desiredFL = atan2(driveY- rotation *  12.375, driveX + rotation * -12.375);
+	desiredFR = atan2(driveY- rotation *  12.375, driveX + rotation *  12.375);
+	desiredBL = atan2(driveY- rotation * -12.375, driveX + rotation * -12.375);
+	desiredBR = atan2(driveY- rotation * -12.375, driveX + rotation *  12.375);
+
+	std::cout << "desiredFL: " << desiredFL << "\n";
+	std::cout << "desiredFR: " << desiredFR << "\n";
+	std::cout << "desiredBL: " << desiredBL << "\n";
+	std::cout << "desiredBR: " << desiredBR << "\n";
+	std::cout << "\n\n";
+	
+	//create PIDs
+	//good job ram family!
+
+	//desiredFR = atan2(driveY,driveX);
+
+	
+	/*
+	double desiredangle = atan(leftJoyStick.GetY()/leftJoyStick.GetX());
+	double currentangle = 0;//encoder.GetPosition();
+
+
+	if(operatorJoyStick.GetTrigger())
+	{
+		shooter1.Set(shooter1ShootSetting);
+		shooter2.Set(shooter2ShootSetting);
+	}
+
+	else {
+		shooter1.Set(shooter1RestSetting);
+		shooter2.Set(shooter2RestSetting);
+	}
+
+	if (abs(operatorJoyStick.GetY()) > operatorJoyStickYDeadZone) {intakeDeploy.Set(operatorJoyStick.GetY() * -1);};
+
+	//intakeDeploy.Set(operatorJoyStick.GetY() * -1);
+	//intakeMouth.Set(operatorJoyStick.GetY() * -1);
+
+	//spinMotor.Set(leftJoystick.GetRawAxis(0) * 0.2f); //0 is X axis
+	//driveMotor.Set(rightJoystick.GetRawAxis(1) * 0.2f); //1 is Y axis
+*/
+}
 
 void Robot::DisabledInit() {}
 
 void Robot::DisabledPeriodic() {}
 
 void Robot::TestInit() {
-  
+	
 }
 
 void Robot::TestPeriodic() {
-
-  double desiredangle = atan(leftJoyStick.GetY()/leftJoyStick.GetX());
-  double currentangle = 0;//encoder.GetPosition();
-
-  if((currentangle*2*M_PI - M_PI)/2 < desiredangle-.2){
-    flspin.Set(.1);
-    frspin.Set(.1);
-    blspin.Set(.1);
-    brspin.Set(.1);
-  } else if ((currentangle*2*M_PI - M_PI)/2 > desiredangle+.2){
-    flspin.Set(-.1);
-    frspin.Set(-.1);
-    blspin.Set(-.1);
-    brspin.Set(-.1);
-  } else {
-    flspin.Set(0);
-    frspin.Set(0);
-    blspin.Set(0);
-    brspin.Set(0);
-  }
-
-  if(rightJoyStick.GetY() > .1){
-    fldrive.Set(.1);
-    frdrive.Set(.1);
-    bldrive.Set(.1);
-    brdrive.Set(.1);
-  } else if (rightJoyStick.GetY() < -.1){
-    fldrive.Set(-.1);
-    frdrive.Set(-.1);
-    bldrive.Set(-.1);
-    brdrive.Set(-.1);
-  } else {
-    fldrive.Set(0);
-    frdrive.Set(0);
-    bldrive.Set(0);
-    brdrive.Set(0);
-  }
-
-  if(operatorJoyStick.GetTrigger())
-  {
-    shooter1.Set(shooter1ShootSetting);
-    shooter2.Set(shooter2ShootSetting);
-  }
-
-  else {
-    shooter1.Set(shooter1RestSetting);
-    shooter2.Set(shooter2RestSetting);
-  }
-
-  if (abs(operatorJoyStick.GetY()) > operatorJoyStickYDeadZone) {intakeDeploy.Set(operatorJoyStick.GetY() * -1);};
-
-  //intakeDeploy.Set(operatorJoyStick.GetY() * -1);
-  //intakeMouth.Set(operatorJoyStick.GetY() * -1);
-
-  //spinMotor.Set(leftJoystick.GetRawAxis(0) * 0.2f); //0 is X axis
-  //driveMotor.Set(rightJoystick.GetRawAxis(1) * 0.2f); //1 is Y axis
-
+	//flspin.Set(rightJoyStick.GetX());
+	//cancoderPosition = CANCoder1.GetPosition().GetValueAsDouble();
+	//std::cout << cancoderPosition << "\n";
+	
 }
 
 void Robot::SimulationInit() {}
@@ -136,6 +130,6 @@ void Robot::SimulationPeriodic() {}
 
 #ifndef RUNNING_FRC_TESTS
 int main() {
-  return frc::StartRobot<Robot>();
+	return frc::StartRobot<Robot>();
 }
 #endif
