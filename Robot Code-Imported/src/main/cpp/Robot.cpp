@@ -66,17 +66,36 @@ void Robot::TeleopPeriodic() {
 	driveY = leftJoyStick.GetY();
 	rotation = rightJoyStick.GetX();
 
-	desiredFL = atan2(driveY- rotation *  12.375, driveX + rotation * -12.375);
-	desiredFR = atan2(driveY- rotation *  12.375, driveX + rotation *  12.375);
-	desiredBL = atan2(driveY- rotation * -12.375, driveX + rotation * -12.375);
-	desiredBR = atan2(driveY- rotation * -12.375, driveX + rotation *  12.375);
+	fldesired = atan2(driveY- rotation *  12.375, driveX + rotation * -12.375);
+	frdesired = atan2(driveY- rotation *  12.375, driveX + rotation *  12.375);
+	bldesired = atan2(driveY- rotation * -12.375, driveX + rotation * -12.375);
+	brdesired = atan2(driveY- rotation * -12.375, driveX + rotation *  12.375);
 
-	std::cout << "desiredFL: " << desiredFL << "\n";
-	std::cout << "desiredFR: " << desiredFR << "\n";
-	std::cout << "desiredBL: " << desiredBL << "\n";
-	std::cout << "desiredBR: " << desiredBR << "\n";
-	std::cout << "\n\n";
+	flcurrent = fmod(flCANcoder.GetPosition().GetValueAsDouble(), 1.0) * 2 * M_PI;
+	if(flcurrent > M_PI){flcurrent -= 2 * M_PI;}
+
+	std::cout << flPID.Calculate(flcurrent, fldesired) << " // " << flcurrent << "\n";
+	flspin.Set(flPID.Calculate(flcurrent, fldesired));
 	
+	//std::cout << flCANcoder.GetPosition().GetValueAsDouble() * 2 * M_PI << "\n";
+	//std::cout << "test\n";
+
+	//frspin.Set(.2);
+	//std::cout << frCANcoder.GetPosition().GetValueAsDouble() * 2 * M_PI << "\n";
+/*
+	std::cout << blCANcoder.GetPosition().GetValueAsDouble() * 2 * M_PI << "\n";
+	std::cout << brCANcoder.GetPosition().GetValueAsDouble() * 2 * M_PI << "\n";
+*/
+	/*
+	std::cout << "desiredFL: " << fldesired << "\n";
+	std::cout << "desiredFR: " << frdesired << "\n";
+	std::cout << "desiredBL: " << bldesired << "\n";
+	std::cout << "desiredBR: " << brdesired << "\n";
+	std::cout << "\n\n";
+	*/
+
+
+
 	//create PIDs
 	//good job ram family!
 
@@ -118,6 +137,7 @@ void Robot::TestInit() {
 }
 
 void Robot::TestPeriodic() {
+
 	//flspin.Set(rightJoyStick.GetX());
 	//cancoderPosition = CANCoder1.GetPosition().GetValueAsDouble();
 	//std::cout << cancoderPosition << "\n";

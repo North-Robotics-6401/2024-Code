@@ -54,22 +54,22 @@ class Robot : public frc::TimedRobot {
 	const std::string kAutoNameCustom = "My Auto";
 	std::string m_autoSelected;
 
-	rev::CANSparkMax flspin{1, rev::CANSparkMax::MotorType::kBrushless};
-	rev::CANSparkMax blspin{3, rev::CANSparkMax::MotorType::kBrushless};
+	rev::CANSparkMax flspin{7, rev::CANSparkMax::MotorType::kBrushless};
+	rev::CANSparkMax blspin{1, rev::CANSparkMax::MotorType::kBrushless};
 	rev::CANSparkMax frspin{5, rev::CANSparkMax::MotorType::kBrushless};
-	rev::CANSparkMax brspin{7, rev::CANSparkMax::MotorType::kBrushless};
+	rev::CANSparkMax brspin{3, rev::CANSparkMax::MotorType::kBrushless};
 
-	rev::CANSparkMax fldrive{2, rev::CANSparkMax::MotorType::kBrushless};
-	rev::CANSparkMax bldrive{4, rev::CANSparkMax::MotorType::kBrushless};
-	rev::CANSparkMax brdrive{6, rev::CANSparkMax::MotorType::kBrushless};
-	rev::CANSparkMax frdrive{8, rev::CANSparkMax::MotorType::kBrushless};
+	rev::CANSparkMax fldrive{8, rev::CANSparkMax::MotorType::kBrushless};
+	rev::CANSparkMax bldrive{2, rev::CANSparkMax::MotorType::kBrushless};
+	rev::CANSparkMax brdrive{4, rev::CANSparkMax::MotorType::kBrushless};
+	rev::CANSparkMax frdrive{6, rev::CANSparkMax::MotorType::kBrushless};
 
 
 	
-	frc::PIDController flPID{0.1, 0.01, 0.02}; 	
+	frc::PIDController flPID{0.1, 0.01, 0.02};
 	//frc::PIDController frPID{0.1, 0.01, 0.02}; 	
 	//frc::PIDController blPID{0.1, 0.01, 0.02}; 	
-	//frc::PIDController brPID{0.1, 0.01, 0.02}; 
+	//frc::PIDController brPID{0.1, 0.01, 0.02};
 
 
  	frc::Joystick leftJoyStick{0};
@@ -95,24 +95,18 @@ class Robot : public frc::TimedRobot {
 	double driveY = 0;
 	double rotation = 0;
 
-	double desiredFL =0;
-	double desiredFR =0;
-	double desiredBL =0;
-	double desiredBR =0;
-
-
-	//calculate the angel we want the wheels to be
-	//during teleop 
-
-
-	double cancoderPosition = 0;
-
+	double fldesired = 0;
+	double frdesired = 0;
+	double bldesired = 0;
+	double brdesired = 0;
 
 	
-ctre::phoenix6::hardware::CANcoder frEncoder{1};
-ctre::phoenix6::hardware::CANcoder fLEncoder{2};
-ctre::phoenix6::hardware::CANcoder blEncoder{3};
-ctre::phoenix6::hardware::CANcoder brEncoder{4};
+	ctre::phoenix6::hardware::CANcoder flCANcoder{4};
+	ctre::phoenix6::hardware::CANcoder frCANcoder{3};
+	ctre::phoenix6::hardware::CANcoder blCANcoder{1};
+	ctre::phoenix6::hardware::CANcoder brCANcoder{2};
+
+	double flcurrent;
 };
 
 //Hello! This is a test comment made from Dylan's computer to test github commits!
