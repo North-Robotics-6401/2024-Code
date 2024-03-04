@@ -6,32 +6,37 @@
 #include <string>
 #include <frc/TimedRobot.h>
 #include <frc/smartdashboard/SendableChooser.h>
+#include <frc/drive/MecanumDrive.h>
 #include <frc/motorcontrol/Spark.h>
 #include <rev/CANSparkMax.h>
 #include <frc/Encoder.h>
 #include <rev/CANEncoder.h>
 #include <frc/Joystick.h>
+#include <frc/DriverStation.h>
 #include <frc/smartdashboard/SmartDashboard.h>
 #include <frc/filter/SlewRateLimiter.h>
 #include <frc/drive/DifferentialDrive.h>
 #include <frc/motorcontrol/MotorControllerGroup.h>
+#include <frc/kinematics/SwerveDriveKinematics.h>
 #include <ctre/phoenix6/CANcoder.hpp>
 #include <iostream>
 #include <frc/controller/PIDController.h>
+#include "AHRS.h"
+#include <frc/SPI.h>
+#include <wpi/array.h>
  
-//#include <frc/XboxController.h>
-// aaron waz aqui!
 //limelight imports
 #include "frc/smartdashboard/Smartdashboard.h"
 #include "networktables/NetworkTable.h"
 #include "networktables/NetworkTableInstance.h"
 #include "networktables/NetworkTableEntry.h"
 #include "networktables/NetworkTableValue.h"
-//#include "span.h"
 #include "cameraserver/CameraServer.h"
 
 #include <iostream>
 #include <time.h>
+
+using namespace frc;
 
 class Robot : public frc::TimedRobot {
 	public:
@@ -48,19 +53,14 @@ class Robot : public frc::TimedRobot {
 		void SimulationInit() override;
 		void SimulationPeriodic() override;
 
-		void SwerveDrive(
-			double driveX, 
-			double driveY, 
-			double rotation, 
-			double gyro,
-			rev::CANSparkMax driveMotor, 
-			rev::CANSparkMax spinMotor, 
+		void controlSwerveDrive(
+			double inputs[],
+			rev::CANSparkMax* driveMotor,
+			rev::CANSparkMax* spinMotor,
 			double driveYMultiplier,
 			double driveXMultiplier,
-			ctre::phoenix6::hardware::CANcoder CANCoder,
-			frc::PIDController PIDController,
-			double maxDrivePower,
-			double maxSpinPower
+			ctre::phoenix6::hardware::CANcoder* CANCoder,
+			frc::PIDController* PIDController
 		);
 
  private:
@@ -93,10 +93,11 @@ class Robot : public frc::TimedRobot {
 	ctre::phoenix6::hardware::CANcoder blCANcoder{1};
 	ctre::phoenix6::hardware::CANcoder brCANcoder{2};
 
+	AHRS gyro{frc::SPI::Port::kMXP};
+	
 	double driveX;
 	double driveY;
 	double rotation;
-	double gyro;
 
 	double fldesired;
 	double frdesired;
@@ -113,32 +114,42 @@ class Robot : public frc::TimedRobot {
 	double blpower;
 	double brpower;
 
-	double spinmax = .3;
+	double spinmax = .1;
 	double drivemax = .4;
-
-	double lastFLSpeed = INFINITY;
 
 	//*********OTHER STUFF***********
 
  	frc::Joystick leftJoyStick{0};
 	frc::Joystick rightJoyStick{1};
  	frc::Joystick operatorJoyStick{2};
-/*
-	rev::CANSparkMax intakeMouth{9, rev::CANSparkMax::MotorType::kBrushless};
-	rev::CANSparkMax intakeDeploy{10, rev::CANSparkMax::MotorType::kBrushless};
+
+	units::meter_t distFromCenter{12.375/39.3701};	//12.375 inches converted to meters
+	frc::SwerveDriveKinematics<4> swerveKinematics{
+		Translation2d{-distFromCenter, distFromCenter},
+		Translation2d{distFromCenter, distFromCenter},
+		Translation2d{-distFromCenter, -distFromCenter},
+		Translation2d{distFromCenter, -distFromCenter},
+	};
+
+	units::meters_per_second_t maxDriveSpeed{1};
+	units::meters_per_second_t maxRotationSpeed{1};
+	//Notes: Our gyro isn't in the center of our robot, so maybe that's causing issues.
+
+	rev::CANSparkMax mouth{9, rev::CANSparkMax::MotorType::kBrushless};
+	rev::CANSparkMax arm{10, rev::CANSparkMax::MotorType::kBrushless};
 	rev::CANSparkMax shooter1{11, rev::CANSparkMax::MotorType::kBrushless};
 	rev::CANSparkMax shooter2{12, rev::CANSparkMax::MotorType::kBrushless};
 	rev::CANSparkMax climber1{13, rev::CANSparkMax::MotorType::kBrushless};
 	rev::CANSparkMax climber2{14, rev::CANSparkMax::MotorType::kBrushless};
-	*/
+	
 
- 
+ /*
 	const double shooter1ShootSetting = 0.5; //the setting to turn the shooter1 to while shooting (Default: 0.5)
 	const double shooter2ShootSetting = -0.5; //the setting to turn the shooter2 to while shooting (Default: -0.5)
 	const double shooter1RestSetting = 0; //the setting to turn the shooter2 to while resting (Default: 0) 
 	const double shooter2RestSetting = 0; //the setting to turn the shooter2 to while resting (Default: 0)
 	const double operatorJoyStickYDeadZone = 0.05; //the deadzone for the operator JoyStick on the Y Axis (Default: 0.05)
-
+*/
 };
 
 //Hello! This is a test comment made from Dylan's computer to test github commits!
