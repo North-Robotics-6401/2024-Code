@@ -24,7 +24,9 @@
 #include "AHRS.h"
 #include <frc/SPI.h>
 #include <wpi/array.h>
+#include <frc/DutyCycleEncoder.h>
  
+/*
 //limelight imports
 #include "frc/smartdashboard/Smartdashboard.h"
 #include "networktables/NetworkTable.h"
@@ -32,6 +34,7 @@
 #include "networktables/NetworkTableEntry.h"
 #include "networktables/NetworkTableValue.h"
 #include "cameraserver/CameraServer.h"
+*/
 
 #include <iostream>
 #include <time.h>
@@ -52,15 +55,15 @@ class Robot : public frc::TimedRobot {
 		void TestPeriodic() override;
 		void SimulationInit() override;
 		void SimulationPeriodic() override;
-
+		bool autoTimeBetween(double min, double max); // TIME FUNCTION
 		void controlSwerveDrive(
 			double inputs[],
 			rev::CANSparkMax* driveMotor,
 			rev::CANSparkMax* spinMotor,
-			double driveYMultiplier,
-			double driveXMultiplier,
+			SwerveModuleState moduleState,
 			ctre::phoenix6::hardware::CANcoder* CANCoder,
-			frc::PIDController* PIDController
+			frc::PIDController* PIDController,
+			int drivePowerNegation
 		);
 
  private:
@@ -71,7 +74,6 @@ class Robot : public frc::TimedRobot {
 
 
 	//*********SWERVE STUFF***********
-
 	rev::CANSparkMax flspin{7, rev::CANSparkMax::MotorType::kBrushless};
 	rev::CANSparkMax frspin{5, rev::CANSparkMax::MotorType::kBrushless};
 	rev::CANSparkMax blspin{1, rev::CANSparkMax::MotorType::kBrushless};
@@ -95,6 +97,9 @@ class Robot : public frc::TimedRobot {
 
 	AHRS gyro{frc::SPI::Port::kMXP};
 	
+	double speakerSpeed = 1.0;
+	double ampSpeed = 0.5;
+
 	double driveX;
 	double driveY;
 	double rotation;
@@ -117,11 +122,17 @@ class Robot : public frc::TimedRobot {
 	double spinmax = .1;
 	double drivemax = .4;
 
+
+	//** TIME VARIABLES **
+	clock_t timeNow = 0; //Variable used in calculating change in time.
+	double autoSecondsElapsed = 0.0; //Total amount of seconds that have elapsed since auto started.
+
 	//*********OTHER STUFF***********
 
  	frc::Joystick leftJoyStick{0};
 	frc::Joystick rightJoyStick{1};
  	frc::Joystick operatorJoyStick{2};
+	//frc::POVButton
 
 	units::meter_t distFromCenter{12.375/39.3701};	//12.375 inches converted to meters
 	frc::SwerveDriveKinematics<4> swerveKinematics{
@@ -131,8 +142,8 @@ class Robot : public frc::TimedRobot {
 		Translation2d{distFromCenter, -distFromCenter},
 	};
 
-	units::meters_per_second_t maxDriveSpeed{1};
-	units::meters_per_second_t maxRotationSpeed{1};
+	double maxDriveSpeed = 1.0;		//Values are in meters per second. ??????
+	double maxRotationSpeed = 1.0;
 	//Notes: Our gyro isn't in the center of our robot, so maybe that's causing issues.
 
 	rev::CANSparkMax mouth{9, rev::CANSparkMax::MotorType::kBrushless};
@@ -141,7 +152,23 @@ class Robot : public frc::TimedRobot {
 	rev::CANSparkMax shooter2{12, rev::CANSparkMax::MotorType::kBrushless};
 	rev::CANSparkMax climber1{13, rev::CANSparkMax::MotorType::kBrushless};
 	rev::CANSparkMax climber2{14, rev::CANSparkMax::MotorType::kBrushless};
-	
+
+	frc::DutyCycleEncoder armEncoder{2};
+	frc::PIDController armPID{0.5, 0.1, .1};
+
+	enum armPositions{
+		Ground,
+		Amp,
+		Shooter,
+		Default
+	};
+	armPositions currentArmTarget = armPositions::Default;
+
+	/*
+	Arm ground position: 0.55
+	Arm amp position: 0.219
+	Arm shooting position: -0.0288
+	*/
 
  /*
 	const double shooter1ShootSetting = 0.5; //the setting to turn the shooter1 to while shooting (Default: 0.5)
