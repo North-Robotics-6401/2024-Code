@@ -98,7 +98,7 @@ class Robot : public frc::TimedRobot {
 	AHRS gyro{frc::SPI::Port::kMXP};
 	
 	double speakerSpeed = 1.0;
-	double ampSpeed = 0.5;
+	double ampSpeed = 0.15;
 
 	double driveX;
 	double driveY;
@@ -155,6 +155,9 @@ class Robot : public frc::TimedRobot {
 
 	frc::DutyCycleEncoder armEncoder{2};
 	frc::PIDController armPID{0.5, 0.1, .1};
+
+	rev::SparkRelativeEncoder climber1Encoder = climber1.GetEncoder(rev::SparkRelativeEncoder::EncoderType::kHallSensor, 42);
+	rev::SparkRelativeEncoder climber2Encoder = climber2.GetEncoder(rev::SparkRelativeEncoder::EncoderType::kHallSensor, 42);
 
 	enum armPositions{
 		Ground,
