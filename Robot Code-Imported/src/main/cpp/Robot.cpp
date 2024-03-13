@@ -9,7 +9,7 @@
 #include <fmt/core.h>
 #include <frc/smartdashboard/SmartDashboard.h>
 
-void Robot::controlSwerveDrive(
+void Robot::controlSwerveModule(
 	double inputs[],
 	rev::CANSparkMax* driveMotor,
 	rev::CANSparkMax* spinMotor,
@@ -19,63 +19,54 @@ void Robot::controlSwerveDrive(
 	int drivePowerNegation
 	)
 {
-
-	/*
-	/////////////////////     PREVIOUS SWERVE DRIVE CODE     ////////////////////
-	/////////////////////     PREVIOUS SWERVE DRIVE CODE     ////////////////////
-	/////////////////////     PREVIOUS SWERVE DRIVE CODE     ////////////////////
-
-	double desiredRotationAngle = atan2(input_driveY - input_rotation * driveYMultiplier, input_driveX + input_rotation * driveXMultiplier) - yaw;
-	if (desiredRotationAngle < 0)
-		desiredRotationAngle += 2 * M_PI;
-	
-
 	double currentAngle = fmod(CANCoder->GetPosition().GetValueAsDouble(), 1.0) * 2 * M_PI;
-
-	// all values beyond this point are  0 < x < 2pi
-	// esure theyre within pi rad of eachother
-	if (desiredRotationAngle - currentAngle > M_PI)
-		currentAngle += 2 * M_PI;
-	else if (currentAngle - desiredRotationAngle > M_PI)
-		currentAngle -= 2 * M_PI;
-
-	// ensure theyre within pi/2 rad of eachother
-	double powerflip = -1; //flips the power if the second optmization is used
-	if (desiredRotationAngle - currentAngle > M_PI / 2)
-		desiredRotationAngle -= M_PI;
-	else if (desiredRotationAngle - currentAngle < -M_PI / 2)
-		desiredRotationAngle += M_PI;
-	else
-		powerflip = 1;
-
-
-	//(each wheel is 17.5in from the geometric center of the robot)
-	double drivePower = (powerflip * std::clamp(sqrt(pow(input_driveX, 2) + pow(input_driveY, 2)) + input_rotation * 17.5 * sin(desiredRotationAngle), -maxDrivePower, maxDrivePower));
-	driveMotor->Set(drivePower);
-
-	//TODO fix wheel spinning the wrong way while rotating
-
-	//**********PID THINGS*************
-	double spinMotorSpeed = std::clamp(PIDController->Calculate(desiredRotationAngle, currentAngle), -maxSpinPower, maxSpinPower);
-	spinMotor->Set(spinMotorSpeed); //multiply by sign of the rotation controller X
-	*/
-
-
-/*
-	////////////// NEW SWERVE DRIVE CODE (USES SWERVEDRIVEKINEMATICS CLASS) ///////////////////////
-*/
-	double currentAngle = fmod(CANCoder->GetPosition().GetValueAsDouble(), 1.0) * 2 * M_PI;
-	moduleState.Optimize(moduleState, Rotation2d{units::radian_t{currentAngle}});
+	moduleState = moduleState.Optimize(moduleState, Rotation2d{units::radian_t{currentAngle}});
 
 	driveMotor->Set(moduleState.speed.value() * drivePowerNegation);
 	double spinMotorSpeed = PIDController->Calculate(moduleState.angle.Radians().value(), currentAngle);
 	spinMotor->Set(spinMotorSpeed);
 }
 
+void Robot::controlSwerveDrive(double movementX, double movementY, double rotationSpeed){
+	//Gyro reads from -180 to 180 degrees. Converts into radians.
+	double yaw = gyro.GetYaw();
+	yaw *= M_PI/180.0;
+	//yaw = 0;	//Remove this when testing whether the gyro works or not when driving.
+	double inputs[] = {
+		-movementX,
+		movementY,
+		rotationSpeed,
+		yaw,
+		0.3,
+		0.5,
+	};
+	//Get inputs for ToSwerveModuleStates()
+	double movementAngle = atan2(movementY, movementX);
+	double movementMagnitude = sqrt(movementX * movementX + movementY * driveY);
+	ChassisSpeeds chassisSpeed = ChassisSpeeds::FromFieldRelativeSpeeds(
+		units::velocity::meters_per_second_t{maxDriveSpeed * cos(movementAngle) * movementMagnitude},
+		units::velocity::meters_per_second_t{maxDriveSpeed * sin(movementAngle) * movementMagnitude},
+		units::angular_velocity::radians_per_second_t{maxRotationSpeed * rotationSpeed},
+		Rotation2d{units::radian_t{-yaw}}
+	);
+	//Get module states
+	wpi::array<SwerveModuleState, 4> moduleStates = swerveKinematics.ToSwerveModuleStates(chassisSpeed);
+	//Convert module state speeds to 0-1 scale
+	swerveKinematics.DesaturateWheelSpeeds(&moduleStates, units::velocity::meters_per_second_t{1});
+	//Control swerve motors using module states
+	controlSwerveModule(inputs, &fldrive, &flspin, moduleStates[0], &flCANcoder, &flPID, -1);
+	controlSwerveModule(inputs, &frdrive, &frspin, moduleStates[1], &frCANcoder, &frPID, -1);
+	controlSwerveModule(inputs, &bldrive, &blspin, moduleStates[2], &blCANcoder, &blPID, 1);
+	controlSwerveModule(inputs, &brdrive, &brspin, moduleStates[3], &brCANcoder, &brPID, 1);
+}
+
 void Robot::RobotInit()
 {
-	m_chooser.SetDefaultOption(kAutoNameDefault, kAutoNameDefault);
-	m_chooser.AddOption(kAutoNameCustom, kAutoNameCustom);
+	//Add auto options to smart dashboard
+	m_chooser.SetDefaultOption(autoNames[0], autoNames[0]);
+	for(int i = 1; i < (int) autoNames.size(); i ++){
+		m_chooser.AddOption(autoNames[i], autoNames[i]);
+	}
 	frc::SmartDashboard::PutData("Auto Modes", &m_chooser);
 }
 
@@ -90,49 +81,53 @@ void Robot::AutonomousInit()
 	gyro.ZeroYaw();
 	autoSecondsElapsed = 0;
 	timeNow = clock();
+	std::cout << "Running " << m_chooser.GetSelected() << " auto!\n";
 }
 
 void Robot::AutonomousPeriodic(){
 	
-	//TIME STUFF ***
+	//TIME STUFF
 	autoSecondsElapsed += (double) ((clock() - timeNow)/((double) CLOCKS_PER_SEC)) * 5.0;
 	timeNow = clock();
 
-	//Control
-	
-	/*
-	if(autoTimeBetween(0, 2)){
+	//Auto driving code
+	std::string selectedAutoMode = m_chooser.GetSelected();
+	if(selectedAutoMode == "ShootAndExit"){
+		if(autoTimeBetween(0, 2)){
+			driveX = 0;
+			driveY = -.5;
+			rotation = 0;
+		} else {
+			driveX = 0;
+			driveY = 0;
+			rotation = 0;
+		}
+		//Normal auto code goes here
+
+
+	}else if(selectedAutoMode == "Testing"){
 		driveX = 0;
-		driveY = -.5;
+		driveY = 0.05;
 		rotation = 0;
-	} else {
+	}else{
 		driveX = 0;
 		driveY = 0;
 		rotation = 0;
 	}
-	*/
-	//Remove this when earnestly testing auto
-	driveX = 0;
-	driveY = 0;
-	rotation = 0;
-
 
 	/*
 	if(autoTimeBetween(4,4.5)){
 		rotation 90;
-
 	}
 		else{
 			rotation=0;
 		}
-
 	if (autoTimeBetween(4.5,5)){
 		driveY = -0.5;
 	}
 		else{
 			driveY =0;
 		}
-
 	if (autoTimeBetween(5, 5.5)){
 		shooter1.Set(speakerSpeed);
 		shooter2.Set(-speakerSpeed);
@@ -141,50 +136,15 @@ void Robot::AutonomousPeriodic(){
 			shooter1.Set(0);
 			shooter2.Set(0);
 		}
-
-
 	*/
 
-
-	//Driving
-	double yaw = gyro.GetYaw();
-	if(yaw < 0){
-		yaw += 360.0;
-	}
-	yaw *= M_PI/180.0;
-	yaw = 0;	//Remove this when testing whether the gyro works or not when driving.
-	double inputs[] = {
-		-driveX,
-		driveY,
-		rotation,
-		yaw,
-		0.3,
-		0.5,
-	};
-	double movementAngle = atan2(driveY, driveX);
-	double movementMagnitude = sqrt(driveX * driveX + driveY * driveY);
-	ChassisSpeeds chassisSpeed = ChassisSpeeds::FromFieldRelativeSpeeds(
-		units::velocity::meters_per_second_t{maxDriveSpeed * cos(movementAngle) * movementMagnitude},
-		units::velocity::meters_per_second_t{maxDriveSpeed * sin(movementAngle) * movementMagnitude},
-		units::angular_velocity::radians_per_second_t{maxRotationSpeed * rotation},
-		Rotation2d{units::radian_t{yaw}}
-	);
-	wpi::array<SwerveModuleState, 4> moduleStates = swerveKinematics.ToSwerveModuleStates(chassisSpeed);
-	swerveKinematics.DesaturateWheelSpeeds(&moduleStates, units::velocity::meters_per_second_t{1});
-	controlSwerveDrive(inputs, &fldrive, &flspin, moduleStates[0], &flCANcoder, &flPID, -1);
-	controlSwerveDrive(inputs, &frdrive, &frspin, moduleStates[1], &frCANcoder, &frPID, -1);
-	controlSwerveDrive(inputs, &bldrive, &blspin, moduleStates[2], &blCANcoder, &blPID, 1);
-	controlSwerveDrive(inputs, &brdrive, &brspin, moduleStates[3], &brCANcoder, &brPID, 1);
-
-
+	controlSwerveDrive(driveX, driveY, rotation);
 }
 
 void Robot::TeleopInit() {
-	//This could potentially be bad. 
-	//This should go in autoinit before an actual match.
-	//gyro.ZeroYaw();
+	//gyro.ZeroYaw(); //Should only be uncommented if testing the gyro.
 
-//	arm.SetIdleMode(rev::CANSparkMax::IdleMode::kBrake);
+	arm.SetIdleMode(rev::CANSparkMax::IdleMode::kBrake);
 	climber1.SetIdleMode(rev::CANSparkMax::IdleMode::kBrake);
 	climber2.SetIdleMode(rev::CANSparkMax::IdleMode::kBrake);
 }
@@ -192,61 +152,36 @@ void Robot::TeleopInit() {
 void Robot::TeleopPeriodic()
 {
 	driveX = -leftJoyStick.GetX();
-	driveY = leftJoyStick.GetY();
+	driveY = -leftJoyStick.GetY();
 	rotation = rightJoyStick.GetX();
 
-	//Gyro reads from -180 to 180 degrees.
-	//This code converts from 0 to 360, then into radians.
-	double yaw = gyro.GetYaw();
-	if(yaw < 0){
-		yaw += 360.0;
-	}
-	yaw *= M_PI/180.0;
-
-	yaw = 0;	//Remove this when testing whether the gyro works or not when driving.
-				//Also the gyro is zeroed in teleopinit.
-				//YOU MUST ALSO CHANGE THIS IN AUTONOMOUS
-
-
-	double inputs[] = {
-		driveX,
-		driveY,
-		rotation,
-		yaw,
-		0.3, //Max drive power
-		0.5, //Max spin power,
-	};
-
-	double movementAngle = atan2(driveY, driveX);
-	double movementMagnitude = sqrt(driveX * driveX + driveY * driveY);
-	ChassisSpeeds chassisSpeed = ChassisSpeeds::FromFieldRelativeSpeeds(
-		units::velocity::meters_per_second_t{maxDriveSpeed * cos(movementAngle) * movementMagnitude},
-		units::velocity::meters_per_second_t{maxDriveSpeed * sin(movementAngle) * movementMagnitude},
-		units::angular_velocity::radians_per_second_t{maxRotationSpeed * rotation},
-		Rotation2d{units::radian_t{yaw}}
-	);
-	wpi::array<SwerveModuleState, 4> moduleStates = swerveKinematics.ToSwerveModuleStates(chassisSpeed);
-	swerveKinematics.DesaturateWheelSpeeds(&moduleStates, units::velocity::meters_per_second_t{1});
-
-	controlSwerveDrive(inputs, &fldrive, &flspin, moduleStates[0], &flCANcoder, &flPID, -1);
-	controlSwerveDrive(inputs, &frdrive, &frspin, moduleStates[1], &frCANcoder, &frPID, -1);
-	controlSwerveDrive(inputs, &bldrive, &blspin, moduleStates[2], &blCANcoder, &blPID, 1);
-	controlSwerveDrive(inputs, &brdrive, &brspin, moduleStates[3], &brCANcoder, &brPID, 1);
-
+	controlSwerveDrive(driveX, driveY, rotation);
 
 	//Move arm
 	double armSpeed = 0;
 	double currentArmPosition = armEncoder.Get().value();
 	double opJoystickY = operatorJoyStick.GetY();
-	//OP JOYSTICK Y IS FLIPPED
-	bool tooFarForward = opJoystickY < 0.025 && currentArmPosition > 0.905;
-	bool tooFarRetracted = opJoystickY > 0.025 && currentArmPosition < 0.295;
-	armSpeed = operatorJoyStick.GetY() * 0.3;
-	if(tooFarForward || tooFarRetracted){
-		armSpeed = 0;
+	bool pushingJoystick = opJoystickY < 0.075;
+	bool pullingJoystick = opJoystickY > 0.075;
+	shootingAmp = operatorJoyStick.GetRawButton(11) || (shootingAmp && !(pushingJoystick || pullingJoystick));
+	if(!shootingAmp){
+		armSpeed = operatorJoyStick.GetY() * 0.35;
+		//This slows the arm down as it approaches a target position.
+		double forwardPercentage = std::clamp((currentArmPosition - 0.295)/(0.905 - 0.295), 0.0, 1.0);
+		armSpeed = pushingJoystick ? armSpeed * std::min(((-4 * (forwardPercentage - 0.75)) + 1), 1.0) : armSpeed;
+		armSpeed = pullingJoystick ? armSpeed * std::min(((-4 * ((1 - forwardPercentage) - 0.75)) + 1), 1.0) : armSpeed;
+		//Don't move the arm motor at all if we're too far forward or backward.
+		bool tooFarForward = pushingJoystick && currentArmPosition > 0.905;
+		bool tooFarRetracted = pullingJoystick && currentArmPosition < 0.295;
+		if(tooFarForward || tooFarRetracted){
+			armSpeed = 0;
+		}
+		//std::cout << forwardPercentage << " // " << armSpeed << " // " << currentArmPosition << " // " << tooFarForward << " // " << tooFarRetracted << "\n";
+	}else{
+		armSpeed = std::clamp(armPID.Calculate(0.5267, currentArmPosition), -0.4, 0.4);
+		std::cout << currentArmPosition << " // " << armSpeed << "\n";
 	}
-	//armSpeed = operatorJoyStick.GetY() > 0.05 ? (operatorJoyStick.GetY() * 0.5) : 0.0; //Arm is fucked. Come back to this later.
-	//std::cout << opJoystickY << " // " << currentArmPosition << " // " << tooFarForward << " // " << tooFarRetracted << "\n";
+	//Arm position 0.5267 is good for amp shooting
 	arm.Set(armSpeed);
 	
 
@@ -275,38 +210,32 @@ void Robot::TeleopPeriodic()
 	//Climb
 	climber1.Set(0);
 	climber2.Set(0);
+	//std::cout << climber1Encoder.GetPosition() << " // " << climber2Encoder.GetPosition() << "\n";
 	if(operatorJoyStick.GetRawButton(8)){
 	//	if(climber1Encoder.GetPosition() > -110.0){
-			climber1.Set(-0.5);
+			climber1.Set(0.65);
 	//	}
 	//	if(climber2Encoder.GetPosition() > -110.0){
-			climber2.Set(-0.5);
+			climber2.Set(0.65);
 	//	}
 	}else{
 		 if(operatorJoyStick.GetRawButton(10)/* && climber1Encoder.GetPosition() < 95.0*/){
-			climber1.Set(0.2);
+			climber1.Set(-0.3);
 		 }
 		 if(operatorJoyStick.GetRawButton(12) /*&& climber2Encoder.GetPosition() < 85.0*/){
-			climber2.Set(0.2);
+			climber2.Set(-0.3);
 		 }
 	}
-
-
-
 	
 }
 
 void Robot::DisabledInit() {
-//	arm.SetIdleMode(rev::CANSparkMax::IdleMode::kCoast);
-//	climber1.SetIdleMode(rev::CANSparkMax::IdleMode::kCoast);
-//	climber2.SetIdleMode(rev::CANSparkMax::IdleMode::kCoast);
+	arm.SetIdleMode(rev::CANSparkMax::IdleMode::kCoast);
 }
 
 void Robot::DisabledPeriodic() {}
 
-void Robot::TestInit(){
-//	arm.SetIdleMode(rev::CANSparkBase::IdleMode::kCoast);
-}
+void Robot::TestInit(){}
 
 void Robot::TestPeriodic(){
 	climber1.Set(0);
@@ -324,14 +253,29 @@ void Robot::TestPeriodic(){
 	}
 	//std::cout << armEncoder.Get().value() << " // " << climber1Encoder.GetPosition() << " // " << climber2Encoder.GetPosition() << "\n";
 
-	/*
-	if(operatorJoyStick.GetTrigger()){
-		flCANcoder.SetPosition(units::turn_t(0.0), units::time::second_t(20.0));
-		frCANcoder.SetPosition(units::turn_t(0.0), units::time::second_t(20.0));
-		blCANcoder.SetPosition(units::turn_t(0.0), units::time::second_t(20.0));
-		brCANcoder.SetPosition(units::turn_t(0.0), units::time::second_t(20.0));
+	if(zeroingDebounce){
+		if(operatorJoyStick.GetRawButton(11)){
+			if(encoderIndex == 0){
+				flCANcoder.SetPosition(units::turn_t(0.0), units::time::second_t(5.0));
+			}else if(encoderIndex == 1){
+				frCANcoder.SetPosition(units::turn_t(0.0), units::time::second_t(5.0));
+			}else if(encoderIndex == 2){
+				brCANcoder.SetPosition(units::turn_t(0.0), units::time::second_t(5.0));
+			}else if(encoderIndex == 3){
+				blCANcoder.SetPosition(units::turn_t(0.0), units::time::second_t(5.0));
+			}
+			std::cout << "Zeroed encoder index " << encoderIndex << "\n";
+			zeroingDebounce = false;
+		}else if(operatorJoyStick.GetRawButton(9)){
+			encoderIndex += 1;
+			encoderIndex = encoderIndex % 5;
+			std::cout << "Selected index " << encoderIndex << "\n";
+			zeroingDebounce = false;
+		}
 	}
-	*/
+	if(operatorJoyStick.GetRawButton(7)){
+		zeroingDebounce = true;
+	}
 }
 
 void Robot::SimulationInit() {}
@@ -434,7 +378,7 @@ void Robot::SimulationPeriodic() {
 	bldrive.Set(blpower);
 	brdrive.Set(brpower);
 
-	//**********PID THINGS*************
+	// **********PID THINGS*************
 	double flSpeed = std::min(flPID.Calculate(fldesired, flcurrent), spinmax);
 	flspin.Set(flSpeed);
 

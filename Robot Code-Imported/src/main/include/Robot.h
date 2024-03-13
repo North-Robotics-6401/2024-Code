@@ -56,7 +56,7 @@ class Robot : public frc::TimedRobot {
 		void SimulationInit() override;
 		void SimulationPeriodic() override;
 		bool autoTimeBetween(double min, double max); // TIME FUNCTION
-		void controlSwerveDrive(
+		void controlSwerveModule(
 			double inputs[],
 			rev::CANSparkMax* driveMotor,
 			rev::CANSparkMax* spinMotor,
@@ -65,15 +65,19 @@ class Robot : public frc::TimedRobot {
 			frc::PIDController* PIDController,
 			int drivePowerNegation
 		);
+		void controlSwerveDrive(
+			double movementX,
+			double movementY,
+			double rotationSpeed
+		);
 
  private:
 	frc::SendableChooser<std::string> m_chooser;
-	const std::string kAutoNameDefault = "Default";
-	const std::string kAutoNameCustom = "My Auto";
 	std::string m_autoSelected;
+	std::array<std::string, 3> autoNames = {"ShootAndExit", "None", "Testing"};
 
 
-	//*********SWERVE STUFF***********
+	// *********SWERVE STUFF***********
 	rev::CANSparkMax flspin{7, rev::CANSparkMax::MotorType::kBrushless};
 	rev::CANSparkMax frspin{5, rev::CANSparkMax::MotorType::kBrushless};
 	rev::CANSparkMax blspin{1, rev::CANSparkMax::MotorType::kBrushless};
@@ -98,7 +102,7 @@ class Robot : public frc::TimedRobot {
 	AHRS gyro{frc::SPI::Port::kMXP};
 	
 	double speakerSpeed = 1.0;
-	double ampSpeed = 0.15;
+	double ampSpeed = 0.19;
 
 	double driveX;
 	double driveY;
@@ -123,11 +127,11 @@ class Robot : public frc::TimedRobot {
 	double drivemax = .4;
 
 
-	//** TIME VARIABLES **
+	// ** TIME VARIABLES **
 	clock_t timeNow = 0; //Variable used in calculating change in time.
 	double autoSecondsElapsed = 0.0; //Total amount of seconds that have elapsed since auto started.
 
-	//*********OTHER STUFF***********
+	// *********OTHER STUFF***********
 
  	frc::Joystick leftJoyStick{0};
 	frc::Joystick rightJoyStick{1};
@@ -154,18 +158,16 @@ class Robot : public frc::TimedRobot {
 	rev::CANSparkMax climber2{14, rev::CANSparkMax::MotorType::kBrushless};
 
 	frc::DutyCycleEncoder armEncoder{2};
-	frc::PIDController armPID{0.5, 0.1, .1};
+	frc::PIDController armPID{1.5, 0.5, .25};
 
-	rev::SparkRelativeEncoder climber1Encoder = climber1.GetEncoder(rev::SparkRelativeEncoder::EncoderType::kHallSensor, 42);
-	rev::SparkRelativeEncoder climber2Encoder = climber2.GetEncoder(rev::SparkRelativeEncoder::EncoderType::kHallSensor, 42);
+	rev::SparkRelativeEncoder climber1Encoder = climber1.GetEncoder(rev::SparkRelativeEncoder::Type::kHallSensor, 42);
+	rev::SparkRelativeEncoder climber2Encoder = climber2.GetEncoder(rev::SparkRelativeEncoder::Type::kHallSensor, 42);
 
-	enum armPositions{
-		Ground,
-		Amp,
-		Shooter,
-		Default
-	};
-	armPositions currentArmTarget = armPositions::Default;
+	bool shootingAmp = false;
+
+	int encoderIndex = 0;
+	bool zeroingDebounce = true;
+
 
 	/*
 	Arm ground position: 0.55
@@ -181,6 +183,3 @@ class Robot : public frc::TimedRobot {
 	const double operatorJoyStickYDeadZone = 0.05; //the deadzone for the operator JoyStick on the Y Axis (Default: 0.05)
 */
 };
-
-//Hello! This is a test comment made from Dylan's computer to test github commits!
-//It worked. :)
