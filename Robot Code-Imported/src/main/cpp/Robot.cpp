@@ -271,13 +271,26 @@ void Robot::TestInit(){
 }
 
 void Robot::TestPeriodic(){
-	if(operatorJoyStick.GetTrigger()){
-		units::angle::turn_t newPos{0};
-		units::time::second_t newTime{0.05};
-		flCANcoder.SetPosition(newPos, newTime);
-		frCANcoder.SetPosition(newPos, newTime);
-		blCANcoder.SetPosition(newPos, newTime);
-		brCANcoder.SetPosition(newPos, newTime);	
+	if(operatorJoyStick.GetTrigger() && wheelToZero <= 4){
+		units::angle::turn_t newPos{0.0};
+		units::time::second_t newTime{0.015};
+		wheelToZero += 1;
+		if(wheelToZero == 1){
+			flCANcoder.SetPosition(newPos, newTime);
+		}else if(wheelToZero == 2){
+			frCANcoder.SetPosition(newPos, newTime);
+		}else if(wheelToZero == 3){
+			blCANcoder.SetPosition(newPos, newTime);
+		}else if(wheelToZero == 4){
+			brCANcoder.SetPosition(newPos, newTime);	
+		}else{
+			std::cout << "Wheels zeroed!\n";
+		}
+	}
+	if(operatorJoyStick.GetRawButton(5)){
+		wheelToZero = 0;
+		//Wheels can not be zeroed continuously if the trigger is held down. Press the Fire.A button to allow for
+		//zeroing the wheels again
 	}
 	climber1.Set(0);
 	climber2.Set(0);

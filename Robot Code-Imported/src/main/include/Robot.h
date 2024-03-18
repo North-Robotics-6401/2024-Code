@@ -126,6 +126,9 @@ class Robot : public frc::TimedRobot {
 	double spinmax = .1;
 	double drivemax = .4;
 
+	bool wheelZeroDebounce = true;
+	int wheelToZero = 0;
+
 
 	// ** TIME VARIABLES **
 	clock_t timeNow = 0; //Variable used in calculating change in time.
