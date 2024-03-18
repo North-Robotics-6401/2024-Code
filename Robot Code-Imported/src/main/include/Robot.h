@@ -74,7 +74,7 @@ class Robot : public frc::TimedRobot {
  private:
 	frc::SendableChooser<std::string> m_chooser;
 	std::string m_autoSelected;
-	std::array<std::string, 3> autoNames = {"ShootAndExit", "None", "Testing"};
+	std::array<std::string, 5> autoNames = {"ShootAndExit", "JustShoot", "JustExit", "None", "Testing"};
 
 
 	// *********SWERVE STUFF***********
@@ -164,6 +164,7 @@ class Robot : public frc::TimedRobot {
 	rev::SparkRelativeEncoder climber2Encoder = climber2.GetEncoder(rev::SparkRelativeEncoder::Type::kHallSensor, 42);
 
 	bool shootingAmp = false;
+	double registeredOpJoystickY = 0;
 
 	int encoderIndex = 0;
 	bool zeroingDebounce = true;

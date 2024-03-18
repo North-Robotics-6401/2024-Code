@@ -94,18 +94,43 @@ void Robot::AutonomousPeriodic(){
 	std::string selectedAutoMode = m_chooser.GetSelected();
 	if(selectedAutoMode == "ShootAndExit"){
 		if(autoTimeBetween(0, 2)){
-			driveX = 0;
-			driveY = -.5;
-			rotation = 0;
-		} else {
-			driveX = 0;
+			shooter1.Set(speakerSpeed);
+			shooter2.Set(-speakerSpeed);
+		}
+		else if(autoTimeBetween(2,4)) {
+			mouth.Set(.7);
+		}
+		else if(autoTimeBetween(4,7)){
+			mouth.Set(0);
+			shooter1.Set(0);
+			shooter2.Set(0);
+			driveY = 0.5;
+		}else{
 			driveY = 0;
-			rotation = 0;
 		}
 		//Normal auto code goes here
-
-
-	}else if(selectedAutoMode == "Testing"){
+	}else if(selectedAutoMode == "JustShoot"){
+		if(autoTimeBetween(0, 2)){
+			shooter1.Set(speakerSpeed);
+			shooter2.Set(-speakerSpeed);
+		}
+		else if(autoTimeBetween(2,4)) {
+			mouth.Set(.7);
+		}
+		else{
+			mouth.Set(0);
+			shooter1.Set(0);
+			shooter2.Set(0);
+		}
+	}else if(selectedAutoMode == "JustExit"){
+		if(autoTimeBetween(0, 3)){
+			driveY = 0.5;
+		}else{
+			driveY = 0.0;
+		}
+	}
+	
+	else if(selectedAutoMode == "Testing"){
 		driveX = 0;
 		driveY = 0.05;
 		rotation = 0;
@@ -151,9 +176,9 @@ void Robot::TeleopInit() {
 
 void Robot::TeleopPeriodic()
 {
-	driveX = -leftJoyStick.GetX();
+	driveX = leftJoyStick.GetX();
 	driveY = -leftJoyStick.GetY();
-	rotation = rightJoyStick.GetX();
+	rotation = -rightJoyStick.GetX();
 
 	controlSwerveDrive(driveX, driveY, rotation);
 
@@ -161,19 +186,22 @@ void Robot::TeleopPeriodic()
 	double armSpeed = 0;
 	double currentArmPosition = armEncoder.Get().value();
 	double opJoystickY = operatorJoyStick.GetY();
-	bool pushingJoystick = opJoystickY < 0.075;
-	bool pullingJoystick = opJoystickY > 0.075;
+	//This "registeredOpJoystickY" exists to soften sudden jerks of the joystick.
+	registeredOpJoystickY = registeredOpJoystickY + ((opJoystickY - registeredOpJoystickY) * 0.2);
+	//std::cout << currentArmPosition << "\n";
+	bool pushingJoystick = opJoystickY < 0.105;
+	bool pullingJoystick = opJoystickY > 0.105;
 	shootingAmp = operatorJoyStick.GetRawButton(11) || (shootingAmp && !(pushingJoystick || pullingJoystick));
 	if(!shootingAmp){
-		armSpeed = operatorJoyStick.GetY() * 0.35;
+		armSpeed = registeredOpJoystickY * 0.35;
 		//This slows the arm down as it approaches a target position.
 		double forwardPercentage = std::clamp((currentArmPosition - 0.295)/(0.905 - 0.295), 0.0, 1.0);
 		armSpeed = pushingJoystick ? armSpeed * std::min(((-4 * (forwardPercentage - 0.75)) + 1), 1.0) : armSpeed;
 		armSpeed = pullingJoystick ? armSpeed * std::min(((-4 * ((1 - forwardPercentage) - 0.75)) + 1), 1.0) : armSpeed;
 		//Don't move the arm motor at all if we're too far forward or backward.
-		bool tooFarForward = pushingJoystick && currentArmPosition > 0.905;
-		bool tooFarRetracted = pullingJoystick && currentArmPosition < 0.295;
-		if(tooFarForward || tooFarRetracted){
+		bool tooFarForward = (pushingJoystick && currentArmPosition > 0.905) || (currentArmPosition < 0.0);
+		bool tooFarRetracted = (pullingJoystick && currentArmPosition < 0.295) && (currentArmPosition > 0.0); //Sometimes encoder will be negative when too far forward
+		if((tooFarForward || tooFarRetracted) && !operatorJoyStick.GetRawButton(7)){
 			armSpeed = 0;
 		}
 		//std::cout << forwardPercentage << " // " << armSpeed << " // " << currentArmPosition << " // " << tooFarForward << " // " << tooFarRetracted << "\n";
@@ -235,9 +263,22 @@ void Robot::DisabledInit() {
 
 void Robot::DisabledPeriodic() {}
 
-void Robot::TestInit(){}
+void Robot::TestInit(){
+	blspin.Set(0);
+	brspin.Set(0);
+	frspin.Set(0);
+	flspin.Set(0);
+}
 
 void Robot::TestPeriodic(){
+	if(operatorJoyStick.GetTrigger()){
+		units::angle::turn_t newPos{0};
+		units::time::second_t newTime{0.05};
+		flCANcoder.SetPosition(newPos, newTime);
+		frCANcoder.SetPosition(newPos, newTime);
+		blCANcoder.SetPosition(newPos, newTime);
+		brCANcoder.SetPosition(newPos, newTime);	
+	}
 	climber1.Set(0);
 	climber2.Set(0);
 	if(operatorJoyStick.GetRawButton(8)){
@@ -253,29 +294,6 @@ void Robot::TestPeriodic(){
 	}
 	//std::cout << armEncoder.Get().value() << " // " << climber1Encoder.GetPosition() << " // " << climber2Encoder.GetPosition() << "\n";
 
-	if(zeroingDebounce){
-		if(operatorJoyStick.GetRawButton(11)){
-			if(encoderIndex == 0){
-				flCANcoder.SetPosition(units::turn_t(0.0), units::time::second_t(5.0));
-			}else if(encoderIndex == 1){
-				frCANcoder.SetPosition(units::turn_t(0.0), units::time::second_t(5.0));
-			}else if(encoderIndex == 2){
-				brCANcoder.SetPosition(units::turn_t(0.0), units::time::second_t(5.0));
-			}else if(encoderIndex == 3){
-				blCANcoder.SetPosition(units::turn_t(0.0), units::time::second_t(5.0));
-			}
-			std::cout << "Zeroed encoder index " << encoderIndex << "\n";
-			zeroingDebounce = false;
-		}else if(operatorJoyStick.GetRawButton(9)){
-			encoderIndex += 1;
-			encoderIndex = encoderIndex % 5;
-			std::cout << "Selected index " << encoderIndex << "\n";
-			zeroingDebounce = false;
-		}
-	}
-	if(operatorJoyStick.GetRawButton(7)){
-		zeroingDebounce = true;
-	}
 }
 
 void Robot::SimulationInit() {}
