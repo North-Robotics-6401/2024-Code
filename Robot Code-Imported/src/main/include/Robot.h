@@ -129,6 +129,10 @@ class Robot : public frc::TimedRobot {
 	bool wheelZeroDebounce = true;
 	int wheelToZero = 0;
 
+	const double armRetractedPosition = 0.290;
+	const double armForwardPosition = 0.890;
+	const double armAmpPosition = 0.535;
+
 
 	// ** TIME VARIABLES **
 	clock_t timeNow = 0; //Variable used in calculating change in time.

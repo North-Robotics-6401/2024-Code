@@ -92,52 +92,42 @@ void Robot::AutonomousPeriodic(){
 
 	//Auto driving code
 	std::string selectedAutoMode = m_chooser.GetSelected();
+
+	double shooter1Speed = 0;
+	double shooter2Speed = 0;
+	double mouthSpeed = 0;
+	driveX = 0;
+	driveY = 0;
+	rotation = 0;
+
 	if(selectedAutoMode == "ShootAndExit"){
 		if(autoTimeBetween(0, 2)){
-			shooter1.Set(speakerSpeed);
-			shooter2.Set(-speakerSpeed);
+			shooter1Speed = speakerSpeed;
+			shooter2Speed = -speakerSpeed;
 		}
-		else if(autoTimeBetween(2,4)) {
-			mouth.Set(.7);
+		else if(autoTimeBetween(2,3)) {
+			mouthSpeed = -0.7;
 		}
-		else if(autoTimeBetween(4,7)){
-			mouth.Set(0);
-			shooter1.Set(0);
-			shooter2.Set(0);
-			driveY = 0.5;
-		}else{
-			driveY = 0;
+		else if(autoTimeBetween(3,6)){
+			driveY = 0.225;
 		}
 		//Normal auto code goes here
 	}else if(selectedAutoMode == "JustShoot"){
 		if(autoTimeBetween(0, 2)){
-			shooter1.Set(speakerSpeed);
-			shooter2.Set(-speakerSpeed);
+			shooter1Speed = speakerSpeed;
+			shooter2Speed = -speakerSpeed;
 		}
-		else if(autoTimeBetween(2,4)) {
-			mouth.Set(.7);
-		}
-		else{
-			mouth.Set(0);
-			shooter1.Set(0);
-			shooter2.Set(0);
+		else if(autoTimeBetween(2,3)) {
+			mouthSpeed = 0.7;
 		}
 	}else if(selectedAutoMode == "JustExit"){
 		if(autoTimeBetween(0, 3)){
-			driveY = 0.5;
-		}else{
-			driveY = 0.0;
+			driveY = 0.225;
 		}
 	}
 	
 	else if(selectedAutoMode == "Testing"){
-		driveX = 0;
 		driveY = 0.05;
-		rotation = 0;
-	}else{
-		driveX = 0;
-		driveY = 0;
-		rotation = 0;
 	}
 
 	/*
@@ -163,12 +153,13 @@ void Robot::AutonomousPeriodic(){
 		}
 	*/
 
+	shooter1.Set(shooter1Speed);
+	shooter2.Set(shooter2Speed);
+	mouth.Set(mouthSpeed);
 	controlSwerveDrive(driveX, driveY, rotation);
 }
 
 void Robot::TeleopInit() {
-	//gyro.ZeroYaw(); //Should only be uncommented if testing the gyro.
-
 	arm.SetIdleMode(rev::CANSparkMax::IdleMode::kBrake);
 	climber1.SetIdleMode(rev::CANSparkMax::IdleMode::kBrake);
 	climber2.SetIdleMode(rev::CANSparkMax::IdleMode::kBrake);
@@ -182,9 +173,16 @@ void Robot::TeleopPeriodic()
 
 	controlSwerveDrive(driveX, driveY, rotation);
 
+	if(operatorJoyStick.GetRawButtonPressed(7)){
+		armEncoder.Reset();
+	}
+
 	//Move arm
 	double armSpeed = 0;
 	double currentArmPosition = armEncoder.Get().value();
+	//Sometimes the arm will go too far forward or retracted and loop around to the negatives or >1.
+	currentArmPosition = currentArmPosition < 0.0 ? currentArmPosition += 1.0 : currentArmPosition;
+	currentArmPosition = currentArmPosition > 1.0 ? currentArmPosition -= 1.0 : currentArmPosition;
 	double opJoystickY = operatorJoyStick.GetY();
 	//This "registeredOpJoystickY" exists to soften sudden jerks of the joystick.
 	registeredOpJoystickY = registeredOpJoystickY + ((opJoystickY - registeredOpJoystickY) * 0.2);
@@ -195,19 +193,19 @@ void Robot::TeleopPeriodic()
 	if(!shootingAmp){
 		armSpeed = registeredOpJoystickY * 0.35;
 		//This slows the arm down as it approaches a target position.
-		double forwardPercentage = std::clamp((currentArmPosition - 0.295)/(0.905 - 0.295), 0.0, 1.0);
+		double forwardPercentage = std::clamp((currentArmPosition - armRetractedPosition)/(armForwardPosition - armRetractedPosition), 0.0, 1.0);
 		armSpeed = pushingJoystick ? armSpeed * std::min(((-4 * (forwardPercentage - 0.75)) + 1), 1.0) : armSpeed;
 		armSpeed = pullingJoystick ? armSpeed * std::min(((-4 * ((1 - forwardPercentage) - 0.75)) + 1), 1.0) : armSpeed;
 		//Don't move the arm motor at all if we're too far forward or backward.
-		bool tooFarForward = (pushingJoystick && currentArmPosition > 0.905) || (currentArmPosition < 0.0);
-		bool tooFarRetracted = (pullingJoystick && currentArmPosition < 0.295) && (currentArmPosition > 0.0); //Sometimes encoder will be negative when too far forward
+		bool tooFarForward = (pushingJoystick && currentArmPosition > armForwardPosition) || (currentArmPosition < 0.0);
+		bool tooFarRetracted = (pullingJoystick && currentArmPosition < armRetractedPosition) && (currentArmPosition > 0.0); //Sometimes encoder will be negative when too far forward
 		if((tooFarForward || tooFarRetracted) && !operatorJoyStick.GetRawButton(7)){
 			armSpeed = 0;
 		}
 		//std::cout << forwardPercentage << " // " << armSpeed << " // " << currentArmPosition << " // " << tooFarForward << " // " << tooFarRetracted << "\n";
 	}else{
-		armSpeed = std::clamp(armPID.Calculate(0.5267, currentArmPosition), -0.4, 0.4);
-		std::cout << currentArmPosition << " // " << armSpeed << "\n";
+		armSpeed = std::clamp(armPID.Calculate(armAmpPosition, currentArmPosition), -0.4, 0.4);
+		//std::cout << currentArmPosition << " // " << armSpeed << "\n";
 	}
 	//Arm position 0.5267 is good for amp shooting
 	arm.Set(armSpeed);
@@ -253,6 +251,12 @@ void Robot::TeleopPeriodic()
 		 if(operatorJoyStick.GetRawButton(12) /*&& climber2Encoder.GetPosition() < 85.0*/){
 			climber2.Set(-0.3);
 		 }
+	}
+
+	//Allow for zeroing of the field oriented drive through teleop.
+	//If neccessary
+	if(leftJoyStick.GetRawButtonPressed(5)){
+		gyro.ZeroYaw();
 	}
 	
 }
