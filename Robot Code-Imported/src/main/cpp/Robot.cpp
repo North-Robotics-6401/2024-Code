@@ -62,6 +62,9 @@ void Robot::controlSwerveDrive(double movementX, double movementY, double rotati
 
 void Robot::RobotInit()
 {
+	gyro.ZeroYaw();
+	wheelToZero = 0;
+
 	//Add auto options to smart dashboard
 	m_chooser.SetDefaultOption(autoNames[0], autoNames[0]);
 	for(int i = 1; i < (int) autoNames.size(); i ++){
@@ -70,7 +73,24 @@ void Robot::RobotInit()
 	frc::SmartDashboard::PutData("Auto Modes", &m_chooser);
 }
 
-void Robot::RobotPeriodic() {}
+void Robot::RobotPeriodic() {
+	if(wheelToZero < 4){
+		units::angle::turn_t newPos{0.0};
+		units::time::second_t newTime{0.015};
+		wheelToZero += 1;
+		if(wheelToZero == 1){
+			flCANcoder.SetPosition(newPos, newTime);
+		}else if(wheelToZero == 2){
+			frCANcoder.SetPosition(newPos, newTime);
+		}else if(wheelToZero == 3){
+			blCANcoder.SetPosition(newPos, newTime);
+		}else if(wheelToZero == 4){
+			brCANcoder.SetPosition(newPos, newTime);	
+		}else{
+			std::cout << "Wheels zeroed!\n";
+		}
+	}
+}
 
 bool Robot::autoTimeBetween(double min, double max){
 	return (autoSecondsElapsed >= min && autoSecondsElapsed <= max);
@@ -78,7 +98,6 @@ bool Robot::autoTimeBetween(double min, double max){
 
 void Robot::AutonomousInit()
 {
-	gyro.ZeroYaw();
 	autoSecondsElapsed = 0;
 	timeNow = clock();
 	std::cout << "Running " << m_chooser.GetSelected() << " auto!\n";
@@ -93,36 +112,35 @@ void Robot::AutonomousPeriodic(){
 	//Auto driving code
 	std::string selectedAutoMode = m_chooser.GetSelected();
 
-	double shooter1Speed = 0;
-	double shooter2Speed = 0;
+	double shooterSpeed = 0;
 	double mouthSpeed = 0;
 	driveX = 0;
 	driveY = 0;
 	rotation = 0;
 
 	if(selectedAutoMode == "ShootAndExit"){
-		if(autoTimeBetween(0, 2)){
-			shooter1Speed = speakerSpeed;
-			shooter2Speed = -speakerSpeed;
+		if(autoTimeBetween(0, 3)){
+			shooterSpeed = speakerSpeed;
 		}
-		else if(autoTimeBetween(2,3)) {
+		else if(autoTimeBetween(3,4)) {
+			shooterSpeed = speakerSpeed;
 			mouthSpeed = -0.7;
 		}
-		else if(autoTimeBetween(3,6)){
-			driveY = 0.225;
+		else if(autoTimeBetween(4,8)){
+			driveY = 0.3;
 		}
 		//Normal auto code goes here
 	}else if(selectedAutoMode == "JustShoot"){
-		if(autoTimeBetween(0, 2)){
-			shooter1Speed = speakerSpeed;
-			shooter2Speed = -speakerSpeed;
+		if(autoTimeBetween(0, 3)){
+			shooterSpeed = speakerSpeed;
 		}
-		else if(autoTimeBetween(2,3)) {
-			mouthSpeed = 0.7;
+		else if(autoTimeBetween(3,4)) {
+			shooterSpeed = speakerSpeed;
+			mouthSpeed = -0.7;
 		}
 	}else if(selectedAutoMode == "JustExit"){
 		if(autoTimeBetween(0, 3)){
-			driveY = 0.225;
+			driveY = 0.3;
 		}
 	}
 	
@@ -153,8 +171,8 @@ void Robot::AutonomousPeriodic(){
 		}
 	*/
 
-	shooter1.Set(shooter1Speed);
-	shooter2.Set(shooter2Speed);
+	shooter1.Set(shooterSpeed);
+	shooter2.Set(-shooterSpeed);
 	mouth.Set(mouthSpeed);
 	controlSwerveDrive(driveX, driveY, rotation);
 }
@@ -172,10 +190,11 @@ void Robot::TeleopPeriodic()
 	rotation = -rightJoyStick.GetX();
 
 	controlSwerveDrive(driveX, driveY, rotation);
+	bool driving = sqrt(driveX * driveX + driveY * driveY) > 0.5;
 
-	if(operatorJoyStick.GetRawButtonPressed(7)){
-		armEncoder.Reset();
-	}
+	//if(operatorJoyStick.GetRawButtonPressed(7)){
+	//	armEncoder.Reset();
+	//}
 
 	//Move arm
 	double armSpeed = 0;
@@ -191,7 +210,7 @@ void Robot::TeleopPeriodic()
 	bool pullingJoystick = opJoystickY > 0.105;
 	shootingAmp = operatorJoyStick.GetRawButton(11) || (shootingAmp && !(pushingJoystick || pullingJoystick));
 	if(!shootingAmp){
-		armSpeed = registeredOpJoystickY * 0.35;
+		armSpeed = registeredOpJoystickY * 0.5;
 		//This slows the arm down as it approaches a target position.
 		double forwardPercentage = std::clamp((currentArmPosition - armRetractedPosition)/(armForwardPosition - armRetractedPosition), 0.0, 1.0);
 		armSpeed = pushingJoystick ? armSpeed * std::min(((-4 * (forwardPercentage - 0.75)) + 1), 1.0) : armSpeed;
@@ -221,16 +240,15 @@ void Robot::TeleopPeriodic()
 	}
 	
 	//Fire
+	double shooterSpeed = 0;
 	if (operatorJoyStick.GetTrigger()){
-		shooter1.Set(speakerSpeed);
-		shooter2.Set(-speakerSpeed);
+		shooterSpeed = speakerSpeed;
 	}else if(operatorJoyStick.GetRawButton(5)){
-		shooter1.Set(ampSpeed);
-		shooter2.Set(-ampSpeed);
-	}else{
-		shooter1.Set(0);
-		shooter2.Set(0);
+		shooterSpeed = ampSpeed;
 	}
+	if(driving){shooterSpeed *= 0.4;}
+	shooter1.Set(shooterSpeed);
+	shooter2.Set(-shooterSpeed);
 
 
 	//Climb
@@ -239,10 +257,10 @@ void Robot::TeleopPeriodic()
 	//std::cout << climber1Encoder.GetPosition() << " // " << climber2Encoder.GetPosition() << "\n";
 	if(operatorJoyStick.GetRawButton(8)){
 	//	if(climber1Encoder.GetPosition() > -110.0){
-			climber1.Set(0.65);
+			climber1.Set(0.8);
 	//	}
 	//	if(climber2Encoder.GetPosition() > -110.0){
-			climber2.Set(0.65);
+			climber2.Set(0.8);
 	//	}
 	}else{
 		 if(operatorJoyStick.GetRawButton(10)/* && climber1Encoder.GetPosition() < 95.0*/){
@@ -268,6 +286,10 @@ void Robot::DisabledInit() {
 void Robot::DisabledPeriodic() {}
 
 void Robot::TestInit(){
+	bldrive.Set(0);
+	brdrive.Set(0);
+	frdrive.Set(0);
+	fldrive.Set(0);
 	blspin.Set(0);
 	brspin.Set(0);
 	frspin.Set(0);
@@ -308,6 +330,9 @@ void Robot::TestPeriodic(){
 		 if(operatorJoyStick.GetRawButton(12)){
 			climber2.Set(0.4);
 		 }
+	}
+	if(leftJoyStick.GetRawButtonPressed(5)){
+		gyro.ZeroYaw();
 	}
 	//std::cout << armEncoder.Get().value() << " // " << climber1Encoder.GetPosition() << " // " << climber2Encoder.GetPosition() << "\n";
 
